@@ -9,9 +9,10 @@ Reference:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import params
 
 def activation(x, l,c, temperature):
+    x = F.relu(x)
     use_l = False
     if l != -1:
         use_l = True
@@ -27,6 +28,14 @@ def activation(x, l,c, temperature):
         x_softmax = torch.softmax(temperature*x_,dim=1).view(x.size()).detach()
         out = x*x_softmax
     return out
+
+def nb_ops_func(out,layer,l,c):
+    if l==0 and c==0:
+        return out.nelement()*layer.weight.shape[1]*layer.weight.shape[2]*layer.weight.shape[3]/out.shape[0]
+    if l != -1:
+        return out.nelement()*layer.weight.shape[1]*layer.weight.shape[2]*layer.weight.shape[3]/(l*out.shape[0])
+    return out.nelement()*c*layer.weight.shape[2]*layer.weight.shape[3]/out.shape[0]
+
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -54,14 +63,85 @@ class BasicBlock(nn.Module):
     #     return out
 
     def temp_forward(self, x, l,c, temp):
-        out = activation(self.bn1(self.conv1(x)), l,c, temp)
+        out = self.conv1(x)
+               
+        if (params.first_block == 1):
+            params.nb_ops += nb_ops_func(out,self.conv1,l,c) 
+        else:
+            params.nb_ops += nb_ops_func(out,self.conv1,0,0)
+
+        out = activation(self.bn1(out), l,c, temp)
         out = self.bn2(self.conv2(out))
+        params.nb_ops += nb_ops_func(out,self.conv2,l,c) 
         if self.stride != 1 or self.in_planes != self.expansion*self.planes:
             out += self.sc_bn(self.sc_conv(x))
+
+            if (params.first_block == 1):
+                params.nb_ops += nb_ops_func(out,self.sc_conv,l,c) 
+            else:
+                params.nb_ops += nb_ops_func(out,self.sc_conv,0,0) 
         else:
             out += x
         out = activation(out, l,c, temp)
+        params.first_block = 1
         return out
+
+class Bottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, in_planes, planes, stride=1):
+        super(Bottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
+                               stride=stride, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(planes, self.expansion *
+                               planes, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(self.expansion*planes)
+        self.stride = stride
+        self.in_planes = in_planes
+        self.planes = planes
+        #self.shortcut = nn.Sequential()
+        if stride != 1 or in_planes != self.expansion*planes:
+            self.sc_conv = nn.Conv2d(in_planes, self.expansion*planes,
+                          kernel_size=1, stride=stride, bias=False)
+            self.sc_bn = nn.BatchNorm2d(self.expansion*planes)
+            
+    #def forward(self, x):
+    #    out = F.relu(self.bn1(self.conv1(x)))
+    #    out = F.relu(self.bn2(self.conv2(out)))
+    #    out = self.bn3(self.conv3(out))
+    #    out += self.shortcut(x)
+    #    out = F.relu(out)
+    #    return out
+
+    def temp_forward(self, x, l,c, temp):
+        out = self.conv1(x)
+        if (params.first_block == 1):
+            params.nb_ops += nb_ops_func(out,self.conv1,l,c) 
+        else:
+            params.nb_ops += nb_ops_func(out,self.conv1,0,0)
+        out = activation(self.bn1(out),l,c, temp)
+        out = self.conv2(out)
+        params.nb_ops += nb_ops_func(out,self.conv2,l,c) 
+        out = activation(self.bn2(out),l,c, temp)
+        out = self.conv3(out)
+        params.nb_ops += nb_ops_func(out,self.conv3,l,c) 
+        out = self.bn3(out)
+        if self.stride != 1 or self.in_planes != self.expansion*self.planes:
+            
+            out += self.sc_bn(self.sc_conv(x))
+            if (params.first_block == 1):
+                params.nb_ops += nb_ops_func(out,self.sc_conv,l,c) 
+            else:
+                params.nb_ops += nb_ops_func(out,self.sc_conv,0,0) 
+        else:
+            out+= x
+        #out += self.shortcut(x)
+        out = activation(out,l,c, temp)
+        return out
+
 
 class ResNet(nn.Module):
     def __init__(self, block, num_blocks, args, num_classes=10):
@@ -91,6 +171,8 @@ class ResNet(nn.Module):
 
     def temp_forward(self, x, l,c, temp):
         out = F.relu(self.bn1(self.conv1(x)))
+        params.nb_ops = nb_ops_func(out,self.conv1,0,0) 
+        params.first_block=0
         for layer in self.layer1:
             out = layer.temp_forward(out, l,c, temp)
         for layer in self.layer2:
