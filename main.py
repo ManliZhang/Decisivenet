@@ -115,10 +115,10 @@ def main():
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
 
-    parser.add_argument('--epochs', type=int, default=3, metavar='N',
+    parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train')
 
-    parser.add_argument('--model', type=str, default="resnet50",
+    parser.add_argument('--model', type=str, default="resnet18",
                         choices=list(dict_models.keys()),
                         help='model to train')
 
