@@ -17,8 +17,7 @@ start_epoch = time.time()
 
 dict_models = dict(
 resnet18=models.ResNet18,
-resnet20=models.ResNet20,
-resnet50=models.ResNet50
+resnet20=models.ResNet20
 )
 
 def duration(eta):
@@ -115,10 +114,10 @@ def main():
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
 
-    parser.add_argument('--epochs', type=int, default=3, metavar='N',
+    parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train')
 
-    parser.add_argument('--model', type=str, default="resnet50",
+    parser.add_argument('--model', type=str, default="resnet18",
                         choices=list(dict_models.keys()),
                         help='model to train')
 
@@ -194,7 +193,7 @@ def main():
     print(str(n_params) + " parameters maximum with " + str(args.feature_maps) + " feature maps")
 
     if args.lr > 0:
-        optimizer = optim.SGD(model.parameters(), lr = args.lr, momentum = 0.9, weight_decay = args.wd)
+        optimizer = optim.SGD(model.parameters(), lr = args.lr, momentum = 0.9, weight_decay = 0)
         scheduler = optim.lr_scheduler.MultiStepLR(optimizer, [args.epochs // 3, 2 * args.epochs // 3], gamma=0.1)
     else:
         optimizer = optim.Adam(model.parameters())
@@ -221,7 +220,6 @@ def main():
         "\"training_acc\": {:f}": train_data["train_acc"],
         "\"test_loss\": {:f}": test_data["test_loss"],
         "\"test_acc\": {:f}": test_data["test_acc"],
-        "\"nb_ops\": {:f}": params.nb_ops,
         "\"nparams\": {:d}": n_params,
         "\"temp_init\": {:f}": args.temp_init,
         "\"temp_final\": {:f}": args.temp_final,
