@@ -182,7 +182,7 @@ def main():
 
     train_loader, test_loader, metadata = get_data_loaders(args)
    
-    model = dict_models[args.model](args).to(device)
+    model = dict_models[args.model](args,num_classes=metadata["n_classes"]).to(device)
 
     if args.half:
         model.half()  # convert to half precision
@@ -225,8 +225,8 @@ def main():
         "\"nparams\": {:d}": n_params,
         "\"temp_init\": {:f}": args.temp_init,
         "\"temp_final\": {:f}": args.temp_final,
-        "\"l\": {:b}": args.l,
-        "\"c\": {:b}": args.c
+        "\"l\": {:f}": args.l,
+        "\"c\": {:f}": args.c
     }
     file_output = open(args.output,"a")
     file_output.write("results.append({")

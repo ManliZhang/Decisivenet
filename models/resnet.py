@@ -25,7 +25,10 @@ def activation(x, l,c, temperature):
         x_max = x_max == x_
         out = x*x_max.view(x.size())
     else:
-        x_softmax = torch.softmax(temperature*x_,dim=1).view(x.size()).detach()
+        x_softmax = torch.softmax(temperature*x_,dim=1)
+        max_ = torch.max(x_softmax,dim=1,keepdim=True)[0]
+        x_softmax /= max_
+        x_softmax = x_softmax.view(x.size()).detach()
         out = x*x_softmax
     return out
 
@@ -141,6 +144,7 @@ class Bottleneck(nn.Module):
         #out += self.shortcut(x)
         out = activation(out,l,c, temp)
         return out
+	
 
 
 class ResNet(nn.Module):
@@ -187,21 +191,55 @@ class ResNet(nn.Module):
         out = self.linear(out)
         return out
 
+    def temp_extract_features(self, x, l,c, temp):
+        out = F.relu(self.bn1(self.conv1(x)))
+        params.nb_ops = nb_ops_func(out,self.conv1,0,0) 
+        params.first_block=0
+        for layer in self.layer1:
+            out = layer.temp_forward(out, l,c, temp)
+        for layer in self.layer2:
+            out = layer.temp_forward(out, l,c, temp)
+        for layer in self.layer3:
+            out = layer.temp_forward(out, l,c, temp)
+        if self.length > 3:
+            for layer in self.layer4:
+                out = layer.temp_forward(out, l,c, temp)
+        out = out.view(out.size(0), -1)
+        return out
+    
+    
+    def temp_extract_pooled(self, x, l,c, temp):
+        out = F.relu(self.bn1(self.conv1(x)))
+        params.nb_ops = nb_ops_func(out,self.conv1,0,0) 
+        params.first_block=0
+        for layer in self.layer1:
+            out = layer.temp_forward(out, l,c, temp)
+        for layer in self.layer2:
+            out = layer.temp_forward(out, l,c, temp)
+        for layer in self.layer3:
+            out = layer.temp_forward(out, l,c, temp)
+        if self.length > 3:
+            for layer in self.layer4:
+                out = layer.temp_forward(out, l,c, temp)
+        out = F.avg_pool2d(out, out.shape[2])
+        out = out.view(out.size(0), -1)
+        return out
+	
 
-def ResNet18(args):
-    return ResNet(BasicBlock, [2,2,2,2], args)
+def ResNet18(args,**kwargs):
+    return ResNet(BasicBlock, [2,2,2,2], args, **kwargs)
 
 def ResNet9(args):
     return ResNet(BasicBlock, [1,1,1], args)
 
-def ResNet20(args):
-    return ResNet(BasicBlock, [3,3,3], args)
+def ResNet20(args,**kwargs):
+    return ResNet(BasicBlock, [3,3,3], args, **kwargs)
 
 def ResNet34(args):
     return ResNet(BasicBlock, [3,4,6,3], args)
 
-def ResNet50(args):
-    return ResNet(Bottleneck, [3,4,6,3], args)
+def ResNet50(args,**kwargs):
+    return ResNet(Bottleneck, [3,4,6,3], args, **kwargs)
 
 def ResNet101(args):
     return ResNet(Bottleneck, [3,4,23,3], args)
